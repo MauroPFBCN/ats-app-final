@@ -137,7 +137,7 @@
 // ---------- CONFIGURACIÓN ----------
 const NOTION_DATABASE_ID = "e6cf390e4b8546e8a5e0d25eba52d598";
 const NOTION_API_URL = "https://api.notion.com/v1";
-const HF_API_URL_BASE = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2";
+const HF_API_URL_BASE = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct";
 
 // ---------- ELEMENTOS DEL DOM ----------
 const tokenInput = document.getElementById('notion-token'), hfKeyInput = document.getElementById('hf-key'),
@@ -328,7 +328,7 @@ async function getAiParsedData(apiKey, cvText) {
           "company": "string",
           "salary": "string",
           "skills_breakdown": {
-            "job_titles": ["string", "Array con MÁXIMO 1 o 2 TÍTULOS DE PUESTO GENERALIZADOS."],
+            "job_titles": ["string", "Array con MÁXIMO 1 o 2 TÍTULOS DE PUESTO GENERALIZADOS. Analiza los puestos recientes y resúmelos en un término genérico (ej: 'Software Development')."],
             "programming_languages": ["string", "Array con MÁXIMO 3 lenguajes de programación principales."],
             "frameworks_libraries": ["string", "Array con MÁXIMO 3 frameworks o librerías principales."],
             "databases": ["string", "Array con MÁXIMO 1 base de datos principal."]
@@ -391,6 +391,7 @@ async function findDuplicateByEmail(email) {
 }
 
 async function createNotionEntry() {
+    if (!dataFields.name.value) throw new Error("El 'Nombre y Apellido' es obligatorio.");
     const properties = { "Nombre y Apellido": { title: [{ text: { content: dataFields.name.value } }] } };
     let linkedInUrl = dataFields.linkedin.value.trim();
     if (linkedInUrl && !linkedInUrl.startsWith('http')) {
