@@ -1,268 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ATS para Notion con IA</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js`;
+    </script>
+    <style>
+        :root {
+            --primary-color: #4f46e5; --secondary-color: #6b7280; --bg-color: #f3f4f6;
+            --surface-color: #ffffff; --border-color: #d1d5db; --text-color: #111827;
+        }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif; background-color: var(--bg-color); color: var(--text-color);
+            margin: 0; padding: 2rem; display: flex; justify-content: center;
+        }
+        .container {
+            max-width: 1100px; width: 100%; background-color: var(--surface-color);
+            padding: 1.5rem 2.5rem; border-radius: 16px;
+            box-shadow: 0 10px 15px -3px rgba(0,0,0,0.05); border: 1px solid var(--border-color);
+        }
+        h1, h2 { font-weight: 700; }
+        h1 { font-size: 1.5rem; margin-bottom: 0.25rem; }
+        h2 {
+            font-size: 1.1rem; text-transform: uppercase; color: var(--secondary-color);
+            margin-top: 1.5rem; padding-bottom: 0.75rem; border-bottom: 1px solid var(--border-color);
+        }
+        p.subtitle { color: var(--secondary-color); margin-top: 0; margin-bottom: 1.5rem; font-size: 0.9rem; }
+        .form-section { margin-bottom: 1.5rem; }
+        label { display: block; font-weight: 500; margin-bottom: 0.5rem; font-size: 0.875rem; }
+        label small { font-weight: 400; color: var(--secondary-color); }
+        input, select {
+            width: 100%; padding: 0.75rem 1rem; border: 1px solid var(--border-color); border-radius: 8px;
+            box-sizing: border-box; font-size: 0.9rem; background-color: #f9fafb; transition: all 0.2s;
+        }
+        select[multiple] { height: 140px; padding: 0.5rem; }
+        input:focus, select:focus {
+            outline: none; border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.2); background-color: #fff;
+        }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem 1.5rem; }
+        .button-group { display: flex; gap: 1rem; margin-top: 2rem; }
+        .btn {
+            flex: 1; padding: 1rem; font-size: 1rem; font-weight: 600; color: #fff;
+            background-color: var(--primary-color); border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s;
+        }
+        .btn:hover { background-color: #4338ca; transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+        .btn:disabled { background-color: #a5b4fc; cursor: not-allowed; transform: none; box-shadow: none; }
+        .btn.secondary { background-color: var(--secondary-color); }
+        .btn.secondary:hover { background-color: #4b5563; }
+        .settings { padding: 1rem; border-radius: 12px; margin-bottom: 1.5rem; border: 1px solid var(--border-color); }
+        .input-toggle { display: flex; border: 1px solid var(--border-color); border-radius: 8px; overflow: hidden; margin-bottom: 1rem; }
+        .toggle-btn {
+            flex: 1; padding: 0.75rem; background-color: var(--surface-color); border: none;
+            cursor: pointer; font-size: 1rem; color: var(--secondary-color); transition: all 0.2s;
+        }
+        .toggle-btn.active { background-color: var(--primary-color); color: #fff; font-weight: 600; }
+        #cv-url-input { display: none; }
+        .message { padding: 1rem; border-radius: 8px; margin-top: 1.5rem; text-align: center; display: none; }
+        .message.success { background-color: #d1fae5; color: #065f46; border: 1px solid #a7f3d0; }
+        .message.error { background-color: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+        .message.info { background-color: #e0f2fe; color: #075985; border: 1px solid #bae6fd; }
+        .modal-backdrop {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-color: rgba(0,0,0,0.5); display: none; justify-content: center; align-items: center; z-index: 1000;
+        }
+        .modal-content {
+            background-color: #fff; padding: 2rem; border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.1); width: 90%; max-width: 500px;
+            text-align: center;
+        }
+        .modal-content h3 { margin-top: 0; }
+        .modal-content p { color: var(--secondary-color); }
+        .modal-content a { color: var(--primary-color); font-weight: 600; text-decoration: none; }
+        .modal-content a:hover { text-decoration: underline; }
+        .modal-buttons { display: flex; gap: 1rem; margin-top: 1.5rem; }
+    </style>
+</head>
+<body>
+<div class="container">
+    <h1>ATS para Notion con IA 🚀</h1>
+    <p class="subtitle">Sube un CV o introduce una URL para que la IA extraiga la información. Luego, revísala y envíala a Notion.</p>
+    <div class="settings">
+        <div class="grid">
+            <div><label for="notion-token">Notion Integration Token</label><input type="password" id="notion-token" placeholder="Pega tu token de Notion aquí"></div>
+            <div><label for="hf-key">Hugging Face API Token</label><input type="password" id="hf-key" placeholder="Pega tu clave de API de Hugging Face aquí"></div>
+        </div>
+    </div>
+    <h2>1. Entrada y Configuración</h2>
+    <div class="form-section">
+        <div class="grid"><div style="grid-column: 1 / -1;"><label>Fuente del Candidato</label><div class="input-toggle"><button class="toggle-btn active" id="toggle-file">Subir CV (PDF)</button><button class="toggle-btn" id="toggle-url">URL de LinkedIn (Pública)</button></div><input type="file" id="cv-file-input" accept=".pdf"><input type="url" id="cv-url-input" placeholder="https://www.linkedin.com/in/usuario/" style="display: none;"></div></div>
+        <div class="grid" style="margin-top: 1.5rem;">
+            <div><label for="dd-stage">STAGE</label><select id="dd-stage"></select></div>
+            <div><label for="dd-resolution">RESOLUTION</label><select id="dd-resolution"></select></div>
+            <div><label for="dd-status">Status</label><select id="dd-status"></select></div>
+            <div><label for="dd-source">SOURCE</label><select id="dd-source"></select></div>
+            <div><label for="dd-gender">Gender</label><select id="dd-gender"></select></div>
+            <div><label for="data-salary">SALARY EXPECTATION</label><input type="text" id="data-salary" placeholder="Ej: 50,000 EUR"></div>
+        </div>
+        <div class="grid" style="margin-top: 1.5rem;"><div style="grid-column: 1 / -1;"><label for="dd-languaje">LANGUAJE <small>(Mantén Ctrl/Cmd para seleccionar varios)</small></label><input type="text" id="languaje-search" placeholder="Buscar idioma..." style="margin-bottom: 0.5rem; background-color: #fff;"><select id="dd-languaje" multiple></select></div></div>
+    </div>
+    <div class="button-group">
+        <button class="btn secondary" id="parse-btn">2. Analizar con IA</button>
+        <button class="btn" id="send-btn" disabled>3. Enviar a Notion</button>
+    </div>
+    <div id="message-box" class="message"></div>
+    <div id="parsed-data-section" style="display: none;">
+        <h2>4. Datos Extraídos (Puedes editar antes de enviar)</h2>
+        <div class="form-section"><div class="grid">
+            <div><label for="data-name">Nombre y Apellido</label><input type="text" id="data-name"></div>
+            <div><label for="data-email">Email</label><input type="email" id="data-email"></div>
+            <div><label for="data-phone">Phone</label><input type="text" id="data-phone"></div>
+            <div><label for="data-location">LOCATION</label><input type="text" id="data-location"></div>
+            <div><label for="data-linkedin">LINKEDIN URL</label><input type="url" id="data-linkedin"></div>
+            <div><label for="data-company">CURRENT COMPANY</label><input type="text" id="data-company"></div>
+            <div style="grid-column: 1 / -1;"><label for="data-skills">Skills</label><input type="text" id="data-skills"></div>
+        </div></div>
+    </div>
+</div>
+
+<div id="duplicate-modal" class="modal-backdrop">
+    <div class="modal-content">
+        <h3>⚠️ Candidato Duplicado</h3>
+        <p id="modal-text"></p>
+        <div class="modal-buttons">
+            <button id="modal-cancel-btn" class="btn secondary">Anular</button>
+            <button id="modal-confirm-btn" class="btn">Crear registro de todas formas</button>
+        </div>
+    </div>
+</div>
+
 <script>
 // ---------- CONFIGURACIÓN ----------
 const NOTION_DATABASE_ID = "e6cf390e4b8546e8a5e0d25eba52d598";
 const NOTION_API_URL = "https://api.notion.com/v1";
-// AQUÍ ESTÁ LA CORRECCIÓN: Se cambió "v1beta" por "v1"
-const GEMINI_API_URL_BASE = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key=";
+const HF_API_URL_BASE = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct";
 
 // ---------- ELEMENTOS DEL DOM ----------
-const tokenInput = document.getElementById('notion-token'), geminiKeyInput = document.getElementById('gemini-key'),
-      languajeSearchInput = document.getElementById('languaje-search'),
-      stageSelect = document.getElementById('dd-stage'), resolutionSelect = document.getElementById('dd-resolution'),
-      statusSelect = document.getElementById('dd-status'), sourceSelect = document.getElementById('dd-source'),
-      genderSelect = document.getElementById('dd-gender'), languajeSelect = document.getElementById('dd-languaje'),
-      parseBtn = document.getElementById('parse-btn'), sendBtn = document.getElementById('send-btn'),
-      messageBox = document.getElementById('message-box'), parsedDataSection = document.getElementById('parsed-data-section'),
-      duplicateModal = document.getElementById('duplicate-modal'), modalText = document.getElementById('modal-text'),
-      modalCancelBtn = document.getElementById('modal-cancel-btn'), modalConfirmBtn = document.getElementById('modal-confirm-btn'),
-      dataFields = {
-        name: document.getElementById('data-name'), email: document.getElementById('data-email'), phone: document.getElementById('data-phone'),
-        location: document.getElementById('data-location'), linkedin: document.getElementById('data-linkedin'),
-        company: document.getElementById('data-company'), skills: document.getElementById('data-skills'), 
-        salary: document.getElementById('data-salary'),
-      };
+const tokenInput = document.getElementById('notion-token'), hfKeyInput = document.getElementById('hf-key'),
+      fileInput = document.getElementById('cv-file-input'), urlInput = document.getElementById('cv-url-input'),
+      languajeSearchInput = document.getElementById('languaje-search'),
+      stageSelect = document.getElementById('dd-stage'), resolutionSelect = document.getElementById('dd-resolution'),
+      statusSelect = document.getElementById('dd-status'), sourceSelect = document.getElementById('dd-source'),
+      genderSelect = document.getElementById('dd-gender'), languajeSelect = document.getElementById('dd-languaje'),
+      parseBtn = document.getElementById('parse-btn'), sendBtn = document.getElementById('send-btn'),
+      messageBox = document.getElementById('message-box'), parsedDataSection = document.getElementById('parsed-data-section'),
+      duplicateModal = document.getElementById('duplicate-modal'), modalText = document.getElementById('modal-text'),
+      modalCancelBtn = document.getElementById('modal-cancel-btn'), modalConfirmBtn = document.getElementById('modal-confirm-btn'),
+      dataFields = {
+        name: document.getElementById('data-name'), email: document.getElementById('data-email'), phone: document.getElementById('data-phone'),
+        location: document.getElementById('data-location'), linkedin: document.getElementById('data-linkedin'),
+        company: document.getElementById('data-company'), skills: document.getElementById('data-skills'), 
+        salary: document.getElementById('data-salary'),
+      };
 
 // ---------- LÓGICA PRINCIPAL ----------
 document.addEventListener('DOMContentLoaded', () => {
-    tokenInput.value = localStorage.getItem('notionApiToken') || '';
-    geminiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
-    if (tokenInput.value) loadDropdownData();
+    tokenInput.value = localStorage.getItem('notionApiToken') || '';
+    hfKeyInput.value = localStorage.getItem('hfApiKey') || '';
+    if (tokenInput.value) loadDropdownData();
 });
 tokenInput.addEventListener('change', () => { localStorage.setItem('notionApiToken', tokenInput.value); loadDropdownData(); });
-geminiKeyInput.addEventListener('change', () => localStorage.setItem('geminiApiKey', geminiKeyInput.value));
+hfKeyInput.addEventListener('change', () => localStorage.setItem('hfApiKey', hfKeyInput.value));
 languajeSearchInput.addEventListener('keyup', () => {
-    const filter = languajeSearchInput.value.toLowerCase();
-    Array.from(languajeSelect.options).forEach(opt => {
-        opt.style.display = opt.textContent.toLowerCase().includes(filter) ? "" : "none";
-    });
+    const filter = languajeSearchInput.value.toLowerCase();
+    Array.from(languajeSelect.options).forEach(opt => {
+        opt.style.display = opt.textContent.toLowerCase().includes(filter) ? "" : "none";
+    });
 });
 document.getElementById('toggle-file').addEventListener('click', () => {
-    document.getElementById('toggle-file').classList.add('active'); document.getElementById('toggle-url').classList.remove('active');
-    document.getElementById('cv-file-input').style.display = 'block'; document.getElementById('cv-url-input').style.display = 'none';
+    document.getElementById('toggle-file').classList.add('active'); document.getElementById('toggle-url').classList.remove('active');
+    fileInput.style.display = 'block'; urlInput.style.display = 'none';
 });
 document.getElementById('toggle-url').addEventListener('click', () => {
-    document.getElementById('toggle-url').classList.add('active'); document.getElementById('toggle-file').classList.remove('active');
-    document.getElementById('cv-url-input').style.display = 'block'; document.getElementById('cv-file-input').style.display = 'none';
+    document.getElementById('toggle-url').classList.add('active'); document.getElementById('toggle-file').classList.remove('active');
+    urlInput.style.display = 'block'; fileInput.style.display = 'none';
 });
 
 function showMessage(type, text, duration = 0) {
-    messageBox.className = `message ${type}`; messageBox.textContent = text;
-    messageBox.style.display = 'block';
-    if (duration > 0) setTimeout(() => { messageBox.style.display = 'none'; }, duration);
+    messageBox.className = `message ${type}`; messageBox.textContent = text;
+    messageBox.style.display = 'block';
+    if (duration > 0) setTimeout(() => { messageBox.style.display = 'none'; }, duration);
 }
 
 parseBtn.addEventListener('click', async () => {
-    parseBtn.disabled = true; parseBtn.textContent = 'Analizando...'; sendBtn.disabled = true;
-    showMessage('info', 'Iniciando análisis...');
-    try {
-        if (!geminiKeyInput.value) throw new Error('La Clave de API de Gemini es necesaria.');
-        let contentToParse = '';
-        if (document.getElementById('toggle-file').classList.contains('active')) {
-            const file = document.getElementById('cv-file-input').files[0];
-            if (!file) throw new Error('Por favor, selecciona un archivo PDF.');
-            contentToParse = await extractTextFromPdf(file);
-        } else {
-            const url = document.getElementById('cv-url-input').value;
-            if (!url) throw new Error('Por favor, introduce una URL.');
-            contentToParse = `Extrae datos del perfil de LinkedIn: ${url}`;
-        }
-        showMessage('info', 'Contactando con la IA de Google...');
-        const parsedData = await getAiParsedData(geminiKeyInput.value, contentToParse);
-        populateFormFields(parsedData);
-        parsedDataSection.style.display = 'block'; sendBtn.disabled = false;
-        showMessage('success', 'Análisis completado. Revisa y edita los datos antes de enviar.', 5000);
-    } catch (error) {
-        showMessage('error', `Error en el análisis: ${error.message}`);
-    } finally {
-        parseBtn.disabled = false; parseBtn.textContent = '2. Analizar con IA';
-    }
+    parseBtn.disabled = true; parseBtn.textContent = 'Analizando...'; sendBtn.disabled = true;
+    showMessage('info', 'Iniciando análisis...');
+    try {
+        if (!hfKeyInput.value) throw new Error('La Clave de API de Hugging Face es necesaria.');
+        let contentToParse = '';
+        if (document.getElementById('toggle-file').classList.contains('active')) {
+            const file = fileInput.files[0];
+            if (!file) throw new Error('Por favor, selecciona un archivo PDF.');
+            contentToParse = await extractTextFromPdf(file);
+        } else {
+            const url = urlInput.value;
+            if (!url) throw new Error('Por favor, introduce una URL.');
+            contentToParse = `Extrae datos del perfil de LinkedIn: ${url}`;
+        }
+        showMessage('info', 'Contactando con la IA de Hugging Face (esto puede tardar)...');
+        const parsedData = await getAiParsedData(hfKeyInput.value, contentToParse);
+        populateFormFields(parsedData);
+        parsedDataSection.style.display = 'block'; sendBtn.disabled = false;
+        showMessage('success', 'Análisis completado. Revisa y edita los datos antes de enviar.', 5000);
+    } catch (error) {
+        showMessage('error', `Error en el análisis: ${error.message}`);
+    } finally {
+        parseBtn.disabled = false; parseBtn.textContent = '2. Analizar con IA';
+    }
 });
 
 sendBtn.addEventListener('click', async () => {
-    sendBtn.disabled = true;
-    sendBtn.textContent = 'Verificando...';
-    if (!dataFields.name.value) {
-        showMessage('error', "El campo 'Nombre y Apellido' es obligatorio.");
-        sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
-        return;
-    }
-    const email = dataFields.email.value.trim();
-    if (!email) { await proceedWithCreation(); return; }
-    try {
-        const duplicates = await findDuplicateByEmail(email);
-        if (duplicates.length > 0) {
-            const existing = duplicates[0];
-            const name = existing.properties["Nombre y Apellido"].title[0].plain_text;
-            const url = existing.url;
-            showDuplicateModal(name, url);
-        } else { await proceedWithCreation(); }
-    } catch (error) {
-        showMessage('error', `Error al verificar duplicados: ${error.message}`);
-        sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
-    }
+    sendBtn.disabled = true;
+    sendBtn.textContent = 'Verificando...';
+    if (!dataFields.name.value) {
+        showMessage('error', "El campo 'Nombre y Apellido' es obligatorio.");
+        sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
+        return;
+    }
+    const email = dataFields.email.value.trim();
+    if (!email) { await proceedWithCreation(); return; }
+    try {
+        const duplicates = await findDuplicateByEmail(email);
+        if (duplicates.length > 0) {
+            const existing = duplicates[0];
+            const name = existing.properties["Nombre y Apellido"].title[0]?.plain_text || 'Sin Nombre';
+            const url = existing.url;
+            showDuplicateModal(name, url);
+        } else { await proceedWithCreation(); }
+    } catch (error) {
+        showMessage('error', `Error al verificar duplicados: ${error.message}`);
+        sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
+    }
 });
 
 async function proceedWithCreation() {
-    sendBtn.textContent = 'Enviando...';
-    try {
-        const newPage = await createNotionEntry();
-        showMessage('success', '¡Candidato creado con éxito!', 3000);
-        if (newPage && newPage.url) window.open(newPage.url, '_blank');
-    } catch (error) {
-        showMessage('error', `Error al enviar a Notion: ${error.message}`);
-    } finally {
-        sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
-    }
+    sendBtn.textContent = 'Enviando...';
+    try {
+        const newPage = await createNotionEntry();
+        showMessage('success', '¡Candidato creado con éxito!', 3000);
+        if (newPage && newPage.url) window.open(newPage.url, '_blank');
+        Object.values(dataFields).forEach(field => field.value = '');
+    } catch (error) {
+        showMessage('error', `Error al enviar a Notion: ${error.message}`);
+    } finally {
+        sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
+    }
 }
 modalCancelBtn.addEventListener('click', () => {
-    duplicateModal.style.display = 'none';
-    sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
+    duplicateModal.style.display = 'none';
+    sendBtn.disabled = false; sendBtn.textContent = '3. Enviar a Notion';
 });
 modalConfirmBtn.addEventListener('click', async () => {
-    duplicateModal.style.display = 'none';
-    await proceedWithCreation();
+    duplicateModal.style.display = 'none';
+    await proceedWithCreation();
 });
 function showDuplicateModal(name, url) {
-    modalText.innerHTML = `Ya existe un registro con este email a nombre de: <br><strong><a href="${url}" target="_blank">${name}</a></strong>`;
-    duplicateModal.style.display = 'flex';
+    modalText.innerHTML = `Ya existe un registro con este email a nombre de: <br><strong><a href="${url}" target="_blank">${name}</a></strong>`;
+    duplicateModal.style.display = 'flex';
 }
 
 function populateFormFields(data) {
-    Object.keys(data).forEach(key => {
-        if (key === 'skills_breakdown') {
-            let allSkills = [];
-            const { job_titles = [], programming_languages = [], frameworks_libraries = [], databases = [] } = data.skills_breakdown;
-            allSkills = [...job_titles, ...programming_languages, ...frameworks_libraries, ...databases];
-            dataFields.skills.value = [...new Set(allSkills)].join(', ');
-        } else if (dataFields[key]) {
-            let value = data[key];
-            if (key === 'phone') value = (value || '').replace(/[\s.-]/g, '');
-            if (key === 'salary' && dataFields.salary.value) return;
-            dataFields[key].value = value || '';
-        }
-    });
+    Object.keys(data).forEach(key => {
+        if (key === 'skills_breakdown') {
+            let allSkills = [];
+            const { job_titles = [], programming_languages = [], frameworks_libraries = [], databases = [] } = data.skills_breakdown;
+            allSkills = [...job_titles, ...programming_languages, ...frameworks_libraries, ...databases];
+            dataFields.skills.value = [...new Set(allSkills)].join(', ');
+        } else if (dataFields[key]) {
+            let value = data[key];
+            if (key === 'phone') value = (value || '').replace(/[\s.-]/g, '');
+            if (key === 'salary' && dataFields.salary.value) return;
+            dataFields[key].value = value || '';
+        }
+    });
 }
 
 async function extractTextFromPdf(file) {
-    const reader = new FileReader();
-    return new Promise((resolve, reject) => {
-        reader.onload = async (event) => {
-            try {
-                const pdf = await pdfjsLib.getDocument(event.target.result).promise;
-                let fullText = '';
-                for (let i = 1; i <= pdf.numPages; i++) {
-                    const page = await pdf.getPage(i);
-                    const textContent = await page.getTextContent();
-                    fullText += textContent.items.map(item => item.str).join(' ');
-                }
-                resolve(fullText);
-            } catch (error) { reject(new Error('No se pudo leer el archivo PDF.')); }
-        };
-        reader.onerror = () => reject(new Error('Error al leer el archivo.'));
-        reader.readAsArrayBuffer(file);
-    });
+    const reader = new FileReader();
+    return new Promise((resolve, reject) => {
+        reader.onload = async (event) => {
+            try {
+                const pdf = await pdfjsLib.getDocument(event.target.result).promise;
+                let fullText = '';
+                for (let i = 1; i <= pdf.numPages; i++) {
+                    const page = await pdf.getPage(i);
+                    const textContent = await page.getTextContent();
+                    fullText += textContent.items.map(item => item.str).join(' ');
+                }
+                resolve(fullText);
+            } catch (error) { reject(new Error('No se pudo leer el archivo PDF.')); }
+        };
+        reader.onerror = () => reject(new Error('Error al leer el archivo.'));
+        reader.readAsArrayBuffer(file);
+    });
 }
 
 // ---------- COMUNICACIÓN CON APIS (A TRAVÉS DEL PROXY PRIVADO) ----------
 async function callApiProxy(targetUrl, method, apiHeaders, body = null) {
-    const response = await fetch('/api/proxy', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: targetUrl, method, headers: apiHeaders, body })
-    });
-
-    const responseBodyText = await response.text();
-
-    if (!response.ok) {
-        throw new Error(`Error del Proxy (${response.status}): ${responseBodyText}`);
-    }
-
-    try {
-        return JSON.parse(responseBodyText);
-    } catch (e) {
-        throw new Error("El proxy devolvió una respuesta exitosa, pero no era un JSON válido.");
-    }
+    const response = await fetch('/api/proxy', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ url: targetUrl, method, headers: apiHeaders, body })
+    });
+    const responseBodyText = await response.text();
+    if (!response.ok) {
+        throw new Error(`Error del Proxy (${response.status}): ${responseBodyText}`);
+    }
+    try {
+        return JSON.parse(responseBodyText);
+    } catch (e) {
+        throw new Error("El proxy devolvió una respuesta que no era un JSON válido.");
+    }
 }
 
 async function getAiParsedData(apiKey, cvText) {
-    const prompt = `Eres un asistente de RRHH experto. Analiza el CV y devuelve un JSON con esta estructura exacta. Si un campo no se encuentra, déjalo como un string vacío "" o un array vacío []. { "name": "string", "email": "string", "phone": "string; formato +codigopaisNUMERO, sin espacios", "location": "string; solo 'Ciudad, País'", "linkedin": "string; si es un hipervínculo, extrae la URL", "company": "string", "salary": "string", "skills_breakdown": { "job_titles": ["string", "Array con MÁXIMO 1 o 2 TÍTULOS DE PUESTO GENERALIZADOS. Analiza los puestos recientes y resúmelos en un término genérico (ej: 'Software Development')."], "programming_languages": ["string", "Array con MÁXIMO 3 lenguajes de programación principales."], "frameworks_libraries": ["string", "Array con MÁXIMO 3 frameworks o librerías principales."], "databases": ["string", "Array con MÁXIMO 1 base de datos principal."] } } CV: --- ${cvText} ---`;
-    const payload = { contents: [{ parts: [{ text: prompt }] }] };
-    const data = await callApiProxy(GEMINI_API_URL_BASE + apiKey, 'POST', {}, payload);
-    if (!data.candidates) {
-        console.error("Respuesta de IA inesperada:", data);
-        if (data.promptFeedback && data.promptFeedback.blockReason) {
-            throw new Error(`La IA bloqueó la respuesta. Razón: ${data.promptFeedback.blockReason}`);
-        }
-        throw new Error("La IA devolvió una respuesta inesperada.");
-    }
-    const textResponse = data.candidates[0].content.parts[0].text;
-    const jsonMatch = textResponse.match(/```json\n([\s\S]*?)\n```/);
-    if (!jsonMatch) {
-        console.error("Respuesta completa de la IA que causó el error:", textResponse);
-        throw new Error("La IA no devolvió un JSON válido. Revisa la consola (Ctrl+Shift+I) para ver la respuesta completa.");
-    }
-    return JSON.parse(jsonMatch[1]);
+    const prompt = `[INST] Eres un asistente de RRHH. Analiza el CV y devuelve SOLAMENTE un bloque de código JSON con la siguiente estructura. No añadas explicaciones.
+        {
+          "name": "string",
+          "email": "string",
+          "phone": "string; formato +codigopaisNUMERO, sin espacios",
+          "location": "string; solo 'Ciudad, País'",
+          "linkedin": "string; si es un hipervínculo, extrae la URL",
+          "company": "string",
+          "salary": "string",
+          "skills_breakdown": {
+            "job_titles": ["string", "Array con MÁXIMO 1 o 2 TÍTULOS DE PUESTO GENERALIZADOS. Analiza los puestos recientes y resúmelos en un término genérico (ej: 'Software Development')."],
+            "programming_languages": ["string", "Array con MÁXIMO 3 lenguajes de programación principales."],
+            "frameworks_libraries": ["string", "Array con MÁXIMO 3 frameworks o librerías principales."],
+            "databases": ["string", "Array con MÁXIMO 1 base de datos principal."]
+          }
+        }
+        [/INST]
+        CV: --- ${cvText} ---
+    `;
+    const payload = { inputs: prompt, parameters: { max_new_tokens: 1024, return_full_text: false } };
+    const headers = { 'Authorization': `Bearer ${apiKey}` };
+    const data = await callApiProxy(HF_API_URL_BASE, 'POST', headers, payload);
+    if (!data || !Array.isArray(data) || !data[0].generated_text) {
+        throw new Error("La IA de Hugging Face devolvió una respuesta inesperada.");
+    }
+    const textResponse = data[0].generated_text;
+    const jsonMatch = textResponse.match(/{[\s\S]*}/);
+    if (!jsonMatch) {
+        console.error("Respuesta completa de la IA que causó el error:", textResponse);
+        throw new Error("La IA no devolvió un JSON válido. Revisa la consola.");
+    }
+    return JSON.parse(jsonMatch[0]);
 }
 
 async function loadDropdownData() {
-    showMessage('info', 'Cargando datos de Notion...');
-    try {
-        const headers = { 'Authorization': `Bearer ${tokenInput.value}`, 'Notion-Version': '2022-06-28' };
-        const dbInfo = await callApiProxy(`${NOTION_API_URL}/databases/${NOTION_DATABASE_ID}`, 'GET', headers);
-        const populate = (pName, el) => {
-            if (!el) { console.error(`Elemento del DOM no encontrado: ${pName}`); return; }
-            const prop = dbInfo.properties[pName];
-            if (prop) { const opts = prop.select?.options || prop.multi_select?.options || prop.status?.options; if (opts) populateSelect(el, opts, pName); }
-        };
-        ['STAGE', 'RESOLUTION', 'Status', 'SOURCE', 'Gender', 'LANGUAJE'].forEach(p => populate(p, document.getElementById(`dd-${p.toLowerCase()}`)));
-        showMessage('success', 'Datos de Notion cargados.', 3000);
-    } catch (error) { showMessage('error', `No se pudieron cargar los datos de Notion: ${error.message}`); }
+    showMessage('info', 'Cargando datos de Notion...');
+    try {
+        const headers = { 'Authorization': `Bearer ${tokenInput.value}`, 'Notion-Version': '2022-06-28' };
+        const dbInfo = await callApiProxy(`${NOTION_API_URL}/databases/${NOTION_DATABASE_ID}`, 'GET', headers);
+        const populate = (pName, el) => {
+            if (!el) { console.error(`Elemento del DOM no encontrado: ${pName}`); return; }
+            const prop = dbInfo.properties[pName];
+            if (prop) { const opts = prop.select?.options || prop.multi_select?.options || prop.status?.options; if (opts) populateSelect(el, opts, pName); }
+        };
+        ['STAGE', 'RESOLUTION', 'Status', 'SOURCE', 'Gender', 'LANGUAJE'].forEach(p => populate(p, document.getElementById(`dd-${p.toLowerCase()}`)));
+        showMessage('success', 'Datos de Notion cargados.', 3000);
+    } catch (error) { showMessage('error', `No se pudieron cargar los datos de Notion: ${error.message}`); }
 }
 
 function populateSelect(selectElement, options, propertyName) {
-    selectElement.innerHTML = '';
-    if (propertyName !== 'LANGUAJE') { /* No ordenar */ } 
-    else { options.sort((a, b) => { /* Orden para idiomas */
-            const nameA = a.name.toLowerCase(), nameB = b.name.toLowerCase(); let pA = 2, pB = 2;
-            if (nameA.startsWith('english')) pA = 0; else if (nameA.startsWith('spanish')) pA = 1;
-            if (nameB.startsWith('english')) pB = 0; else if (nameB.startsWith('spanish')) pB = 1;
-            if (pA !== pB) return pA - pB; return nameA.localeCompare(nameB);
-        });
-    }
-    if (!selectElement.multiple) {
-        selectElement.innerHTML = '<option value=""></option>';
-    }
-    options.forEach(opt => { const o = document.createElement('option'); o.value = opt.name; o.textContent = opt.name; selectElement.appendChild(o); });
+    selectElement.innerHTML = '';
+    if (propertyName !== 'LANGUAJE') { /* No ordenar */ } 
+    else { options.sort((a, b) => { /* Orden para idiomas */
+            const nameA = a.name.toLowerCase(), nameB = b.name.toLowerCase(); let pA = 2, pB = 2;
+            if (nameA.startsWith('english')) pA = 0; else if (nameA.startsWith('spanish')) pA = 1;
+            if (nameB.startsWith('english')) pB = 0; else if (nameB.startsWith('spanish')) pB = 1;
+            if (pA !== pB) return pA - pB; return nameA.localeCompare(nameB);
+        });
+    }
+    if (!selectElement.multiple) {
+        selectElement.innerHTML = '<option value=""></option>';
+    }
+    options.forEach(opt => { const o = document.createElement('option'); o.value = opt.name; o.textContent = opt.name; selectElement.appendChild(o); });
 }
 
 async function findDuplicateByEmail(email) {
-    const headers = { 'Authorization': `Bearer ${tokenInput.value}`, 'Content-Type': 'application/json', 'Notion-Version': '2022-06-28' };
-    const body = { filter: { property: 'Email', email: { equals: email } } };
-    const response = await callApiProxy(`${NOTION_API_URL}/databases/${NOTION_DATABASE_ID}/query`, 'POST', headers, body);
-    return response.results;
+    const headers = { 'Authorization': `Bearer ${tokenInput.value}`, 'Content-Type': 'application/json', 'Notion-Version': '2022-06-28' };
+    const body = { filter: { property: 'Email', email: { equals: email } } };
+    const response = await callApiProxy(`${NOTION_API_URL}/databases/${NOTION_DATABASE_ID}/query`, 'POST', headers, body);
+    return response.results;
 }
 
 async function createNotionEntry() {
-    const properties = { "Nombre y Apellido": { title: [{ text: { content: dataFields.name.value } }] } };
-    let linkedInUrl = dataFields.linkedin.value.trim();
-    if (linkedInUrl && !linkedInUrl.startsWith('http')) {
-        linkedInUrl = `https://www.linkedin.com/in/${linkedInUrl.replace(/^\//, '')}`;
-    }
-    const addSelect = (pName, el) => { if (el.value) properties[pName] = { select: { name: el.value } }; };
-    ['STAGE', 'RESOLUTION', 'SOURCE', 'Gender'].forEach(p => addSelect(p, document.getElementById(`dd-${p.toLowerCase()}`)));
-    if (statusSelect.value) properties.Status = { status: { name: statusSelect.value } };
-    const selectedLangs = Array.from(languajeSelect.options).filter(o => o.selected).map(o => ({ name: o.value }));
-    if (selectedLangs.length > 0) properties.LANGUAJE = { multi_select: selectedLangs };
-    const phoneVal = dataFields.phone.value.replace(/[\s.-]/g, '');
-    if (phoneVal) properties.Phone = { phone_number: phoneVal };
-    const addRichText = (pName, field) => { if (field.value) properties[pName] = { rich_text: [{ text: { content: field.value } }] }; };
-    addRichText('LOCATION', dataFields.location);
-    addRichText('CURRENT COMPANY', dataFields.company);
-    addRichText('SALARY EXPECTATION', dataFields.salary);
-    if (dataFields.email.value) properties.Email = { email: dataFields.email.value };
-    if (linkedInUrl) properties["LINKEDIN URL"] = { url: linkedInUrl };
-    if (dataFields.skills.value) properties.Skills = { multi_select: dataFields.skills.value.split(',').map(s => ({ name: s.trim() })).filter(s => s.name) };
-    const headers = { 'Authorization': `Bearer ${tokenInput.value}`, 'Content-Type': 'application/json', 'Notion-Version': '2022-06-28' };
-    return await callApiProxy(`${NOTION_API_URL}/pages`, 'POST', headers, { parent: { database_id: NOTION_DATABASE_ID }, properties });
+    if (!dataFields.name.value) throw new Error("El 'Nombre y Apellido' es obligatorio.");
+    const properties = { "Nombre y Apellido": { title: [{ text: { content: dataFields.name.value } }] } };
+    let linkedInUrl = dataFields.linkedin.value.trim();
+    if (linkedInUrl && !linkedInUrl.startsWith('http')) {
+        linkedInUrl = `https://www.linkedin.com/in/${linkedInUrl.replace(/^\//, '')}`;
+    }
+    const addSelect = (pName, el) => { if (el.value) properties[pName] = { select: { name: el.value } }; };
+    ['STAGE', 'RESOLUTION', 'SOURCE', 'Gender'].forEach(p => addSelect(p, document.getElementById(`dd-${p.toLowerCase()}`)));
+    if (statusSelect.value) properties.Status = { status: { name: statusSelect.value } };
+    const selectedLangs = Array.from(languajeSelect.options).filter(o => o.selected).map(o => ({ name: o.value }));
+    if (selectedLangs.length > 0) properties.LANGUAJE = { multi_select: selectedLangs };
+    const phoneVal = dataFields.phone.value.replace(/[\s.-]/g, '');
+    if (phoneVal) properties.Phone = { phone_number: phoneVal };
+    const addRichText = (pName, field) => { if (field.value) properties[pName] = { rich_text: [{ text: { content: field.value } }] }; };
+    addRichText('LOCATION', dataFields.location);
+    addRichText('CURRENT COMPANY', dataFields.company);
+    addRichText('SALARY EXPECTATION', dataFields.salary);
+    if (dataFields.email.value) properties.Email = { email: dataFields.email.value };
+    if (linkedInUrl) properties["LINKEDIN URL"] = { url: linkedInUrl };
+    if (dataFields.skills.value) properties.Skills = { multi_select: dataFields.skills.value.split(',').map(s => ({ name: s.trim() })).filter(s => s.name) };
+    const headers = { 'Authorization': `Bearer ${tokenInput.value}`, 'Content-Type': 'application/json', 'Notion-Version': '2022-06-28' };
+    return await callApiProxy(`${NOTION_API_URL}/pages`, 'POST', headers, { parent: { database_id: NOTION_DATABASE_ID }, properties });
 }
 </script>
+</body>
+</html>
