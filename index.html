@@ -87,12 +87,12 @@
     <div class="settings">
         <div class="grid">
             <div><label for="notion-token">Notion Integration Token</label><input type="password" id="notion-token" placeholder="Pega tu token de Notion aquí"></div>
-            <div><label for="hf-key">Hugging Face API Token</label><input type="password" id="hf-key" placeholder="Pega tu clave de API de Hugging Face aquí"></div>
+            <div><label for="gemini-key">Google AI (Gemini) API Key</label><input type="password" id="gemini-key" placeholder="Pega tu clave de API de Gemini aquí"></div>
         </div>
     </div>
     <h2>1. Entrada y Configuración</h2>
     <div class="form-section">
-        <div class="grid"><div style="grid-column: 1 / -1;"><label>Fuente del Candidato</label><div class="input-toggle"><button class="toggle-btn active" id="toggle-file">Subir CV (PDF)</button><button class="toggle-btn" id="toggle-url">URL de LinkedIn (Pública)</button></div><input type="file" id="cv-file-input" accept=".pdf"><input type="url" id="cv-url-input" placeholder="https://www.linkedin.com/in/usuario/" style="display: none;"></div></div>
+        <div class="grid"><div style="grid-column: 1 / -1;"><label>Fuente del Candidato</label><div class="input-toggle"><button class="toggle-btn active" id="toggle-file">Subir CV (PDF)</button><button class="toggle-btn" id="toggle-url">URL de LinkedIn</button></div><input type="file" id="cv-file-input" accept=".pdf" style="display: block;"><input type="url" id="cv-url-input" placeholder="https://www.linkedin.com/in/usuario/"></div></div>
         <div class="grid" style="margin-top: 1.5rem;">
             <div><label for="dd-stage">STAGE</label><select id="dd-stage"></select></div>
             <div><label for="dd-resolution">RESOLUTION</label><select id="dd-resolution"></select></div>
@@ -103,10 +103,7 @@
         </div>
         <div class="grid" style="margin-top: 1.5rem;"><div style="grid-column: 1 / -1;"><label for="dd-languaje">LANGUAJE <small>(Mantén Ctrl/Cmd para seleccionar varios)</small></label><input type="text" id="languaje-search" placeholder="Buscar idioma..." style="margin-bottom: 0.5rem; background-color: #fff;"><select id="dd-languaje" multiple></select></div></div>
     </div>
-    <div class="button-group">
-        <button class="btn secondary" id="parse-btn">2. Analizar con IA</button>
-        <button class="btn" id="send-btn" disabled>3. Enviar a Notion</button>
-    </div>
+    <div class="button-group"><button class="btn secondary" id="parse-btn">2. Analizar con IA</button><button class="btn" id="send-btn" disabled>3. Enviar a Notion</button></div>
     <div id="message-box" class="message"></div>
     <div id="parsed-data-section" style="display: none;">
         <h2>4. Datos Extraídos (Puedes editar antes de enviar)</h2>
@@ -137,11 +134,10 @@
 // ---------- CONFIGURACIÓN ----------
 const NOTION_DATABASE_ID = "e6cf390e4b8546e8a5e0d25eba52d598";
 const NOTION_API_URL = "https://api.notion.com/v1";
-const HF_API_URL_BASE = "https://api-inference.huggingface.co/models/meta-llama/Meta-Llama-3-8B-Instruct";
+const GEMINI_API_URL_BASE = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-latest:generateContent?key=";
 
 // ---------- ELEMENTOS DEL DOM ----------
-const tokenInput = document.getElementById('notion-token'), hfKeyInput = document.getElementById('hf-key'),
-      fileInput = document.getElementById('cv-file-input'), urlInput = document.getElementById('cv-url-input'),
+const tokenInput = document.getElementById('notion-token'), geminiKeyInput = document.getElementById('gemini-key'),
       languajeSearchInput = document.getElementById('languaje-search'),
       stageSelect = document.getElementById('dd-stage'), resolutionSelect = document.getElementById('dd-resolution'),
       statusSelect = document.getElementById('dd-status'), sourceSelect = document.getElementById('dd-source'),
@@ -160,11 +156,11 @@ const tokenInput = document.getElementById('notion-token'), hfKeyInput = documen
 // ---------- LÓGICA PRINCIPAL ----------
 document.addEventListener('DOMContentLoaded', () => {
     tokenInput.value = localStorage.getItem('notionApiToken') || '';
-    hfKeyInput.value = localStorage.getItem('hfApiKey') || '';
+    geminiKeyInput.value = localStorage.getItem('geminiApiKey') || '';
     if (tokenInput.value) loadDropdownData();
 });
 tokenInput.addEventListener('change', () => { localStorage.setItem('notionApiToken', tokenInput.value); loadDropdownData(); });
-hfKeyInput.addEventListener('change', () => localStorage.setItem('hfApiKey', hfKeyInput.value));
+geminiKeyInput.addEventListener('change', () => localStorage.setItem('geminiApiKey', geminiKeyInput.value));
 languajeSearchInput.addEventListener('keyup', () => {
     const filter = languajeSearchInput.value.toLowerCase();
     Array.from(languajeSelect.options).forEach(opt => {
@@ -173,11 +169,11 @@ languajeSearchInput.addEventListener('keyup', () => {
 });
 document.getElementById('toggle-file').addEventListener('click', () => {
     document.getElementById('toggle-file').classList.add('active'); document.getElementById('toggle-url').classList.remove('active');
-    fileInput.style.display = 'block'; urlInput.style.display = 'none';
+    document.getElementById('cv-file-input').style.display = 'block'; document.getElementById('cv-url-input').style.display = 'none';
 });
 document.getElementById('toggle-url').addEventListener('click', () => {
     document.getElementById('toggle-url').classList.add('active'); document.getElementById('toggle-file').classList.remove('active');
-    urlInput.style.display = 'block'; fileInput.style.display = 'none';
+    document.getElementById('cv-url-input').style.display = 'block'; document.getElementById('cv-file-input').style.display = 'none';
 });
 
 function showMessage(type, text, duration = 0) {
@@ -190,19 +186,19 @@ parseBtn.addEventListener('click', async () => {
     parseBtn.disabled = true; parseBtn.textContent = 'Analizando...'; sendBtn.disabled = true;
     showMessage('info', 'Iniciando análisis...');
     try {
-        if (!hfKeyInput.value) throw new Error('La Clave de API de Hugging Face es necesaria.');
+        if (!geminiKeyInput.value) throw new Error('La Clave de API de Gemini es necesaria.');
         let contentToParse = '';
         if (document.getElementById('toggle-file').classList.contains('active')) {
-            const file = fileInput.files[0];
+            const file = document.getElementById('cv-file-input').files[0];
             if (!file) throw new Error('Por favor, selecciona un archivo PDF.');
             contentToParse = await extractTextFromPdf(file);
         } else {
-            const url = urlInput.value;
+            const url = document.getElementById('cv-url-input').value;
             if (!url) throw new Error('Por favor, introduce una URL.');
             contentToParse = `Extrae datos del perfil de LinkedIn: ${url}`;
         }
-        showMessage('info', 'Contactando con la IA de Hugging Face (esto puede tardar)...');
-        const parsedData = await getAiParsedData(hfKeyInput.value, contentToParse);
+        showMessage('info', 'Contactando con la IA de Google...');
+        const parsedData = await getAiParsedData(geminiKeyInput.value, contentToParse);
         populateFormFields(parsedData);
         parsedDataSection.style.display = 'block'; sendBtn.disabled = false;
         showMessage('success', 'Análisis completado. Revisa y edita los datos antes de enviar.', 5000);
@@ -227,7 +223,7 @@ sendBtn.addEventListener('click', async () => {
         const duplicates = await findDuplicateByEmail(email);
         if (duplicates.length > 0) {
             const existing = duplicates[0];
-            const name = existing.properties["Nombre y Apellido"].title[0]?.plain_text || 'Sin Nombre';
+            const name = existing.properties["Nombre y Apellido"].title[0].plain_text;
             const url = existing.url;
             showDuplicateModal(name, url);
         } else { await proceedWithCreation(); }
@@ -243,7 +239,6 @@ async function proceedWithCreation() {
         const newPage = await createNotionEntry();
         showMessage('success', '¡Candidato creado con éxito!', 3000);
         if (newPage && newPage.url) window.open(newPage.url, '_blank');
-        Object.values(dataFields).forEach(field => field.value = '');
     } catch (error) {
         showMessage('error', `Error al enviar a Notion: ${error.message}`);
     } finally {
@@ -306,50 +301,44 @@ async function callApiProxy(targetUrl, method, apiHeaders, body = null) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ url: targetUrl, method, headers: apiHeaders, body })
     });
+
+    // **INICIO DE LA CORRECCIÓN DE ERROR**
+    // Leer el cuerpo de la respuesta como texto para poder inspeccionarlo siempre
     const responseBodyText = await response.text();
+
+    // Si la respuesta no fue exitosa (ej: 404, 500, 502), lanzar un error claro
     if (!response.ok) {
+        // Esto mostrará el error real de Netlify, como "Function invocation timed out"
         throw new Error(`Error del Proxy (${response.status}): ${responseBodyText}`);
     }
+
+    // Si la respuesta fue exitosa, intentar interpretarla como JSON
     try {
         return JSON.parse(responseBodyText);
     } catch (e) {
-        throw new Error("El proxy devolvió una respuesta que no era un JSON válido.");
+        throw new Error("El proxy devolvió una respuesta exitosa, pero no era un JSON válido.");
     }
+    // **FIN DE LA CORRECCIÓN DE ERROR**
 }
 
 async function getAiParsedData(apiKey, cvText) {
-    const prompt = `[INST] Eres un asistente de RRHH. Analiza el CV y devuelve SOLAMENTE un bloque de código JSON con la siguiente estructura. No añadas explicaciones.
-        {
-          "name": "string",
-          "email": "string",
-          "phone": "string; formato +codigopaisNUMERO, sin espacios",
-          "location": "string; solo 'Ciudad, País'",
-          "linkedin": "string; si es un hipervínculo, extrae la URL",
-          "company": "string",
-          "salary": "string",
-          "skills_breakdown": {
-            "job_titles": ["string", "Array con MÁXIMO 1 o 2 TÍTULOS DE PUESTO GENERALIZADOS. Analiza los puestos recientes y resúmelos en un término genérico (ej: 'Software Development')."],
-            "programming_languages": ["string", "Array con MÁXIMO 3 lenguajes de programación principales."],
-            "frameworks_libraries": ["string", "Array con MÁXIMO 3 frameworks o librerías principales."],
-            "databases": ["string", "Array con MÁXIMO 1 base de datos principal."]
-          }
+    const prompt = `Eres un asistente de RRHH experto. Analiza el CV y devuelve un JSON con esta estructura exacta. Si un campo no se encuentra, déjalo como un string vacío "" o un array vacío []. { "name": "string", "email": "string", "phone": "string; formato +codigopaisNUMERO, sin espacios", "location": "string; solo 'Ciudad, País'", "linkedin": "string; si es un hipervínculo, extrae la URL", "company": "string", "salary": "string", "skills_breakdown": { "job_titles": ["string", "Array con MÁXIMO 1 o 2 TÍTULOS DE PUESTO GENERALIZADOS. Analiza los puestos recientes y resúmelos en un término genérico (ej: 'Software Development')."], "programming_languages": ["string", "Array con MÁXIMO 3 lenguajes de programación principales."], "frameworks_libraries": ["string", "Array con MÁXIMO 3 frameworks o librerías principales."], "databases": ["string", "Array con MÁXIMO 1 base de datos principal."] } } CV: --- ${cvText} ---`;
+    const payload = { contents: [{ parts: [{ text: prompt }] }] };
+    const data = await callApiProxy(GEMINI_API_URL_BASE + apiKey, 'POST', {}, payload);
+    if (!data.candidates) {
+        console.error("Respuesta de IA inesperada:", data);
+        if (data.promptFeedback && data.promptFeedback.blockReason) {
+            throw new Error(`La IA bloqueó la respuesta. Razón: ${data.promptFeedback.blockReason}`);
         }
-        [/INST]
-        CV: --- ${cvText} ---
-    `;
-    const payload = { inputs: prompt, parameters: { max_new_tokens: 1024, return_full_text: false } };
-    const headers = { 'Authorization': `Bearer ${apiKey}` };
-    const data = await callApiProxy(HF_API_URL_BASE, 'POST', headers, payload);
-    if (!data || !Array.isArray(data) || !data[0].generated_text) {
-        throw new Error("La IA de Hugging Face devolvió una respuesta inesperada.");
+        throw new Error("La IA devolvió una respuesta inesperada.");
     }
-    const textResponse = data[0].generated_text;
-    const jsonMatch = textResponse.match(/{[\s\S]*}/);
+    const textResponse = data.candidates[0].content.parts[0].text;
+    const jsonMatch = textResponse.match(/```json\n([\s\S]*?)\n```/);
     if (!jsonMatch) {
         console.error("Respuesta completa de la IA que causó el error:", textResponse);
-        throw new Error("La IA no devolvió un JSON válido. Revisa la consola.");
+        throw new Error("La IA no devolvió un JSON válido. Revisa la consola (Ctrl+Shift+I) para ver la respuesta completa.");
     }
-    return JSON.parse(jsonMatch[0]);
+    return JSON.parse(jsonMatch[1]);
 }
 
 async function loadDropdownData() {
@@ -391,7 +380,6 @@ async function findDuplicateByEmail(email) {
 }
 
 async function createNotionEntry() {
-    if (!dataFields.name.value) throw new Error("El 'Nombre y Apellido' es obligatorio.");
     const properties = { "Nombre y Apellido": { title: [{ text: { content: dataFields.name.value } }] } };
     let linkedInUrl = dataFields.linkedin.value.trim();
     if (linkedInUrl && !linkedInUrl.startsWith('http')) {
